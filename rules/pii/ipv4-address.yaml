@@ -1,0 +1,29 @@
+id: ipv4-address
+info:
+  name: IPv4 Address
+  author: tatu-core
+  severity: warning
+  category: pii
+  compliance:
+    - GDPR Art. 4
+    - ISO 27001 A.18.1.4
+    - NIST CSF PR.DS-5
+    - DORA Art. 9
+  description: Detects IPv4 addresses which are considered PII under GDPR.
+  tags:
+    - pii
+    - gdpr
+    - network
+
+hook:
+  event: PreToolUse
+  matcher: Write|Edit
+  action: warn
+  mode: audit
+
+detect:
+  type: regex
+  patterns:
+    - '\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b'
+
+message: "IPv4 Address detected. IP addresses are considered PII under GDPR Recital 30. Ensure this is a placeholder or a public address, not a real user's IP."

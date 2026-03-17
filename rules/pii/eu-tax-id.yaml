@@ -1,0 +1,31 @@
+id: eu-tax-id
+info:
+  name: EU Personal Tax ID
+  author: tatu-core
+  severity: critical
+  category: pii
+  compliance:
+    - GDPR Art. 4
+    - GDPR Art. 87
+    - ISO 27001 A.18.1.4
+    - NIST CSF PR.DS-5
+    - DORA Art. 9
+  description: Detects various EU tax and personal identification number patterns.
+  tags:
+    - pii
+    - gdpr
+    - eu
+
+hook:
+  event: PreToolUse
+  matcher: Write|Edit
+  action: block
+  mode: audit
+
+detect:
+  type: regex
+  patterns:
+    - '\b\d{11}\b'
+    - '\b[A-Z]{2}\d{8}[A-Z]\b'
+
+message: "EU Personal/Tax ID detected. Direct use of national identification numbers is highly regulated under GDPR Article 87."

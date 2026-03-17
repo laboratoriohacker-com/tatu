@@ -1,0 +1,18 @@
+id: yara-private-key
+info:
+  name: Private Key Detection (YARA)
+  severity: critical
+  category: secrets
+  author: tatu
+  tags: [secrets, pem, private-key]
+  compliance: [SOC2, ISO27001]
+hook:
+  events:
+    - PreToolUse
+  matcher: Write|Edit|Read
+  action: block
+  mode: audit
+detect:
+  type: yara
+  yara_file: private-key-multi.yar
+message: "PEM private key detected in content. Remove private keys from source files."

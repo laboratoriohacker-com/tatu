@@ -1,0 +1,28 @@
+id: lockfile-modification
+info:
+  name: Dependency Lockfile Modification
+  author: tatu-core
+  severity: warning
+  category: files
+  compliance:
+    - SOC2 CC7.1
+  tags:
+    - filesystem
+    - dependencies
+    - supply-chain
+
+hook:
+  event: PreToolUse
+  matcher: Write|Edit
+  action: warn
+  mode: audit
+
+detect:
+  type: regex
+  patterns:
+    - '(?:^|/)package-lock\.json$'
+    - '(?:^|/)yarn\.lock$'
+    - '(?:^|/)poetry\.lock$'
+    - '(?:^|/)Pipfile\.lock$'
+
+message: "Dependency lockfile modification detected. Direct edits to lockfiles can introduce supply chain vulnerabilities. Use the appropriate package manager command to update dependencies instead."

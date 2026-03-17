@@ -1,0 +1,34 @@
+id: destructive-rm-rf
+info:
+  name: Destructive File Deletion Command
+  author: tatu-core
+  severity: critical
+  category: destructive
+  compliance:
+    - SOC2 CC7.1
+    - CPS234 Op. Risk
+    - ISO 27001 A.8.29
+    - ISO 27001 A.12.4
+    - NIST CSF PR.IP-1
+    - FedRAMP CM-3
+    - DORA Art. 11
+  tags:
+    - destructive
+    - filesystem
+    - bash
+
+hook:
+  event: PreToolUse
+  matcher: Bash
+  action: block
+  mode: audit
+
+detect:
+  type: regex
+  patterns:
+    - '\brm\s+(-[a-zA-Z]*f[a-zA-Z]*\s+|.*--force\s+).*/'
+    - '\brm\s+-[a-zA-Z]*r[a-zA-Z]*f'
+    - '\bmkfs\b'
+    - '\bdd\s+if='
+
+message: "Destructive filesystem command detected. Commands like rm -rf, mkfs, or dd can cause irreversible data loss. Verify intent before proceeding."

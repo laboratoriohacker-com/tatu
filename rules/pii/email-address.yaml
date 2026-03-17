@@ -1,0 +1,29 @@
+id: email-in-code
+info:
+  name: Email Address in Code
+  author: tatu-core
+  severity: warning
+  category: pii
+  compliance:
+    - LGPD Art. 46
+    - GDPR Art. 5
+    - ISO 27001 A.18.1.4
+    - NIST CSF PR.DS-5
+    - DORA Art. 9
+  tags:
+    - pii
+    - lgpd
+    - email
+
+hook:
+  event: PreToolUse
+  matcher: Write|Edit
+  action: warn
+  mode: audit
+
+detect:
+  type: regex
+  patterns:
+    - '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+
+message: "Email address detected in content. Hardcoding real email addresses in source code may violate LGPD. Use placeholder or anonymized data in tests and examples."

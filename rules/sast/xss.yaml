@@ -1,0 +1,32 @@
+id: sast-xss
+info:
+  name: Cross-Site Scripting (XSS) Sink
+  author: tatu-core
+  severity: warning
+  category: sast
+  compliance:
+    - SOC2 CC8.1
+    - ISO 27001 A.8.28
+    - PCI DSS Req 6.2.2
+    - NIST CSF PR.IP-2
+    - FedRAMP SA-11
+    - DORA Art. 10
+  tags:
+    - sast
+    - xss
+    - owasp-a03
+
+hook:
+  event: PreToolUse
+  matcher: Write|Edit
+  action: warn
+  mode: audit
+
+detect:
+  type: regex
+  patterns:
+    - '\.innerHTML\s*='
+    - 'document\.write\s*\('
+    - 'dangerouslySetInnerHTML'
+
+message: "Potential XSS sink detected. Avoid using innerHTML, document.write, or dangerouslySetInnerHTML with untrusted data. Use safe DOM APIs or proper sanitization."

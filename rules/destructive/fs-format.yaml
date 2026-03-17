@@ -1,0 +1,24 @@
+id: fs-format
+info:
+  name: File System Formatting
+  author: tatu-core
+  severity: critical
+  category: destructive
+  description: Detects commands that format partitions or disks.
+  tags:
+    - system
+    - disk
+
+hook:
+  event: PreToolUse
+  matcher: Bash
+  action: block
+  mode: audit
+
+detect:
+  type: regex
+  patterns:
+    - '\bmkfs\.[a-z0-9]+\s+/dev/'
+    - '\bmkfs\s+-t\s+[a-z0-9]+\s+/dev/'
+
+message: "Disk formatting command detected. This will ERASE all data on the target partition!"

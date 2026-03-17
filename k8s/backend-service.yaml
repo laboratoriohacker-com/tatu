@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: tatu
+  labels:
+    app: tatu
+    component: backend
+spec:
+  selector:
+    app: tatu
+    component: backend
+  ports:
+    - port: 8000
+      targetPort: 8000
+      protocol: TCP

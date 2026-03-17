@@ -1,0 +1,27 @@
+id: sast-weak-crypto
+info:
+  name: Weak Cryptographic Hashing
+  author: tatu-blue-team
+  severity: warning
+  category: sast
+  compliance:
+    - NIST SP 800-131A
+  description: Detects usage of MD5 or SHA1, which are considered cryptographically broken for security purposes.
+  tags:
+    - python
+    - crypto
+    - weak-hash
+
+hook:
+  event: PreToolUse
+  matcher: Write|Edit
+  action: warn
+  mode: audit
+
+detect:
+  type: regex
+  patterns:
+    - '\bhashlib\.md5\('
+    - '\bhashlib\.sha1\('
+
+message: "Weak hashing algorithm detected (MD5/SHA1). Use stronger algorithms like SHA-256 (hashlib.sha256) or SHA-512 for security contexts."

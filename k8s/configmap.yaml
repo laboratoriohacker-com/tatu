@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tatu-config
+  namespace: tatu
+data:
+  TATU_CORS_ORIGINS: '["https://tatu.example.com"]'
+  TATU_ADMIN_EMAIL: "admin@example.com"
+  TATU_SMTP_HOST: ""
+  TATU_SMTP_PORT: "587"

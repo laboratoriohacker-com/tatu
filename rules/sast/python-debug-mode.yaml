@@ -1,0 +1,29 @@
+id: python-debug-mode
+info:
+  name: Python Debug Mode Enabled
+  author: tatu-blue-team
+  severity: critical
+  category: sast
+  compliance:
+    - OWASP A05:2021
+  description: Detects enabling debug mode or binding to 0.0.0.0 in application code, which is dangerous for production.
+  tags:
+    - python
+    - fastapi
+    - flask
+    - misconfiguration
+
+hook:
+  event: PreToolUse
+  matcher: Write|Edit
+  action: warn
+  mode: audit
+
+detect:
+  type: regex
+  patterns:
+    - '\.run\(.*debug\s*=\s*True.*\)'
+    - 'DEBUG\s*=\s*True'
+    - 'host\s*=\s*["'']0\.0\.0\.0["'']'
+
+message: "Debug mode or global interface binding detected. Ensure this code is not deployed to production, as it exposes stack traces and internal interfaces."

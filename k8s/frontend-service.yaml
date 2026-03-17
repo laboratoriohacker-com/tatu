@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: tatu
+  labels:
+    app: tatu
+    component: frontend
+spec:
+  selector:
+    app: tatu
+    component: frontend
+  ports:
+    - port: 80
+      targetPort: 80
+      protocol: TCP

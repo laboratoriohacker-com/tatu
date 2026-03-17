@@ -1,0 +1,30 @@
+id: brazilian-cnpj
+info:
+  name: Brazilian CNPJ Number
+  author: tatu-core
+  severity: critical
+  category: pii
+  compliance:
+    - LGPD Art. 37
+    - LGPD Art. 46
+    - ISO 27001 A.18.1.4
+    - NIST CSF PR.DS-5
+    - DORA Art. 9
+  tags:
+    - pii
+    - lgpd
+    - brazil
+    - cnpj
+
+hook:
+  event: PreToolUse
+  matcher: Write|Edit
+  action: block
+  mode: audit
+
+detect:
+  type: regex
+  patterns:
+    - '\b\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}\b'
+
+message: "Brazilian CNPJ number detected in content. Writing PII such as CNPJ numbers to source files may violate LGPD. Use anonymized or tokenized identifiers instead."

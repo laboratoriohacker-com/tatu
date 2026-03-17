@@ -1,0 +1,23 @@
+id: docker-prune
+info:
+  name: Docker Mass Cleanup
+  author: tatu-core
+  severity: warning
+  category: destructive
+  description: Detects docker prune commands that can delete all unused volumes/images.
+  tags:
+    - docker
+    - infrastructure
+
+hook:
+  event: PreToolUse
+  matcher: Bash
+  action: block
+  mode: audit
+
+detect:
+  type: regex
+  patterns:
+    - '\bdocker\s+(?:system|volume|image|container)\s+prune\b'
+
+message: "Docker prune command detected. This will permanently delete unused resources. Ensure you have a backup if needed."

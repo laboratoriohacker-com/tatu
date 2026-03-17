@@ -1,0 +1,30 @@
+@import "tailwindcss";
+
+@theme {
+  --color-tatu-bg: #0A0E17;
+  --color-tatu-surface: #111827;
+  --color-tatu-surface-alt: #151D2E;
+  --color-tatu-border: #1E293B;
+  --color-tatu-border-hover: #334155;
+  --color-tatu-text: #E2E8F0;
+  --color-tatu-text-muted: #94A3B8;
+  --color-tatu-text-dim: #64748B;
+  --color-tatu-accent: #10B981;
+  --color-tatu-accent-dim: #059669;
+  --color-tatu-accent-glow: rgba(16, 185, 129, 0.15);
+  --color-tatu-critical: #EF4444;
+  --color-tatu-critical-dim: rgba(239, 68, 68, 0.15);
+  --color-tatu-warn: #F59E0B;
+  --color-tatu-warn-dim: rgba(245, 158, 11, 0.15);
+  --color-tatu-info: #3B82F6;
+  --color-tatu-info-dim: rgba(59, 130, 246, 0.15);
+
+  --font-mono: "JetBrains Mono", "SF Mono", "Fira Code", ui-monospace, monospace;
+}
+
+body {
+  font-family: var(--font-mono);
+  background-color: var(--color-tatu-bg);
+  color: var(--color-tatu-text);
+  margin: 0;
+}

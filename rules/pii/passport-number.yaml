@@ -1,0 +1,32 @@
+id: passport-number
+info:
+  name: Passport Number
+  author: tatu-core
+  severity: critical
+  category: pii
+  compliance:
+    - GDPR Art. 5
+    - GDPR Art. 32
+    - ISO 27001 A.18.1.4
+    - NIST CSF PR.DS-5
+    - FedRAMP MP-4
+    - DORA Art. 9
+  description: Detects general passport number patterns (common EU/UK formats).
+  tags:
+    - pii
+    - gdpr
+    - travel
+
+hook:
+  event: PreToolUse
+  matcher: Write|Edit
+  action: block
+  mode: audit
+
+detect:
+  type: regex
+  patterns:
+    - '\b[A-Z0-9]{6,9}\b'
+    - '\b[A-Z]{2}[0-9]{7}\b'
+
+message: "Passport number detected. Handling unencrypted government-issued IDs violates GDPR security principles. Use masked or synthetic data."

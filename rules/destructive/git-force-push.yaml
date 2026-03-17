@@ -1,0 +1,32 @@
+id: destructive-git-force-push
+info:
+  name: Destructive Git Command
+  author: tatu-core
+  severity: critical
+  category: destructive
+  compliance:
+    - SOC2 CC8.1
+    - ISO 27001 A.8.29
+    - ISO 27001 A.12.1.2
+    - NIST CSF PR.IP-2
+    - FedRAMP CM-3
+    - DORA Art. 11
+  tags:
+    - destructive
+    - git
+    - vcs
+
+hook:
+  event: PreToolUse
+  matcher: Bash
+  action: block
+  mode: audit
+
+detect:
+  type: regex
+  patterns:
+    - '\bgit\s+push\s+.*--force'
+    - '\bgit\s+push\s+-f\b'
+    - '\bgit\s+reset\s+--hard\b'
+
+message: "Destructive Git command detected. Force push and hard reset can rewrite history and cause data loss for collaborators. Verify intent before proceeding."

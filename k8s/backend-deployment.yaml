@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tatu-backend
+  namespace: tatu
+  labels:
+    app: tatu
+    component: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: tatu
+      component: backend
+  template:
+    metadata:
+      labels:
+        app: tatu
+        component: backend
+    spec:
+      containers:
+        - name: backend
+          image: ghcr.io/laboratoriohacker-com/tatu-backend:latest
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: tatu-config
+            - secretRef:
+                name: tatu-secret
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

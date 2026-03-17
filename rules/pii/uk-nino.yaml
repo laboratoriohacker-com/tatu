@@ -1,0 +1,30 @@
+id: uk-nino
+info:
+  name: UK National Insurance Number
+  author: tatu-core
+  severity: critical
+  category: pii
+  compliance:
+    - GDPR Art. 4
+    - GDPR Art. 9
+    - ISO 27001 A.18.1.4
+    - NIST CSF PR.DS-5
+    - DORA Art. 9
+  description: Detects UK National Insurance Numbers (NINO).
+  tags:
+    - pii
+    - gdpr
+    - uk
+
+hook:
+  event: PreToolUse
+  matcher: Write|Edit
+  action: block
+  mode: audit
+
+detect:
+  type: regex
+  patterns:
+    - '\b[A-CEGHJ-PR-TW-Z][A-CEGHJ-NPR-TW-Z]\s?\d{2}\s?\d{2}\s?\d{2}\s?[A-D]\b'
+
+message: "UK National Insurance Number (NINO) detected. This is sensitive personal data under GDPR."

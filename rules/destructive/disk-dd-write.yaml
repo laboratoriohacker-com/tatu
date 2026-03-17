@@ -1,0 +1,23 @@
+id: disk-dd-write
+info:
+  name: Direct Disk Write (dd)
+  author: tatu-core
+  severity: critical
+  category: destructive
+  description: Detects dd commands writing directly to disk devices.
+  tags:
+    - system
+    - disk
+
+hook:
+  event: PreToolUse
+  matcher: Bash
+  action: block
+  mode: audit
+
+detect:
+  type: regex
+  patterns:
+    - '\bdd\s+.*of=/dev/(?:sd|nvme|hd|vd|mmcblk)[a-z0-9]+'
+
+message: "Direct disk write (dd) to a device detected. This is extremely dangerous and can lead to data loss."

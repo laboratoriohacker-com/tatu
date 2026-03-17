@@ -1,0 +1,33 @@
+id: sast-sqli-string-concat
+info:
+  name: SQL Injection via String Concatenation
+  author: tatu-core
+  severity: critical
+  category: sast
+  compliance:
+    - SOC2 CC8.1
+    - ISO 27001 A.8.28
+    - ISO 27001 A.14.2
+    - PCI DSS Req 6.2.1
+    - NIST CSF PR.IP-2
+    - FedRAMP SA-11
+    - DORA Art. 10
+  tags:
+    - sast
+    - sqli
+    - owasp-a03
+
+hook:
+  event: PreToolUse
+  matcher: Write|Edit
+  action: block
+  mode: audit
+
+detect:
+  type: regex
+  patterns:
+    - 'f[''\"]\s*(?:SELECT|INSERT|UPDATE|DELETE)\s.+\{.*\}'
+    - '(?:SELECT|INSERT|UPDATE|DELETE)\s.+\.format\s*\('
+    - '(?:SELECT|INSERT|UPDATE|DELETE)\s.*[''"]\s*\+\s*\w+'
+
+message: "Potential SQL injection vulnerability detected. SQL queries must use parameterized queries or ORM methods, never string concatenation or f-strings with user input."

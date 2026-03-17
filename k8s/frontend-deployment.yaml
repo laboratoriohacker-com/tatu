@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tatu-frontend
+  namespace: tatu
+  labels:
+    app: tatu
+    component: frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: tatu
+      component: frontend
+  template:
+    metadata:
+      labels:
+        app: tatu
+        component: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: ghcr.io/laboratoriohacker-com/tatu-frontend:latest
+          ports:
+            - containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi

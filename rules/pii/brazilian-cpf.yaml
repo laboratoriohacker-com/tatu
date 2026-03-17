@@ -1,0 +1,32 @@
+id: brazilian-cpf
+info:
+  name: Brazilian CPF Number
+  author: tatu-core
+  severity: critical
+  category: pii
+  compliance:
+    - LGPD Art. 37
+    - LGPD Art. 46
+    - ISO 27001 A.18.1.4
+    - NIST CSF PR.DS-5
+    - DORA Art. 9
+  tags:
+    - pii
+    - lgpd
+    - brazil
+    - cpf
+
+hook:
+  events:
+    - PreToolUse
+    - PostToolUse
+  matcher: Write|Edit|Read
+  action: block
+  mode: strict
+
+detect:
+  type: regex
+  patterns:
+    - '\b\d{3}\.\d{3}\.\d{3}-\d{2}\b'
+
+message: "Brazilian CPF number detected in content. Writing PII such as CPF numbers to source files may violate LGPD. Use anonymized or tokenized identifiers instead."

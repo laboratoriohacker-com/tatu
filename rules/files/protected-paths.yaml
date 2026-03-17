@@ -1,0 +1,31 @@
+id: protected-paths
+info:
+  name: Protected File Path Access
+  author: tatu-core
+  severity: critical
+  category: files
+  compliance:
+    - SOC2 CC6.1
+    - ISO 27001 A.9.4
+  tags:
+    - filesystem
+    - protected
+    - secrets
+
+hook:
+  event: PreToolUse
+  matcher: Write|Edit|Read
+  action: block
+  mode: strict
+
+detect:
+  type: regex
+  patterns:
+    - '(?:^|/)\.env(?:\.|$)'
+    - '(?:^|/)\.github/workflows/'
+    - '/etc/shadow'
+    - '/etc/passwd'
+    - '(?:^|/)id_rsa'
+    - '(?:^|/)id_ed25519'
+
+message: "Access to a protected file path detected. Writing to .env files, CI/CD workflows, system credential files, or SSH private keys requires explicit authorization."

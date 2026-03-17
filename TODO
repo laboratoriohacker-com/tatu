@@ -1,0 +1,3 @@
+- [x] Add pagination in live alerts page / api
+- [x] Publish official Docker images (distroless) using github workflows
+- [x] Add a kubernetes YAML deployment setup

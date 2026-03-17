@@ -1,0 +1,99 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: tatu
+      POSTGRES_USER: tatu
+      POSTGRES_PASSWORD: tatu_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - ./rules:/rules
+    environment:
+      - TATU_DATABASE_URL=sqlite+aiosqlite:///./tatu.db
+      - TATU_SECRET_KEY=${TATU_SECRET_KEY:-changeme}
+      - TATU_ADMIN_EMAIL=${TATU_ADMIN_EMAIL:-admin@tatu.local}
+      - TATU_CORS_ORIGINS=${TATU_CORS_ORIGINS:-["http://localhost:5173"]}
+      - TATU_SMTP_HOST=mailpit
+    depends_on:
+      - mailpit
+    restart: unless-stopped
+
+  test:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    volumes:
+      - ./backend:/app
+      - ./rules:/rules
+    environment:
+      - TATU_SECRET_KEY=testsecret
+      - TATU_ADMIN_EMAIL=test@tatu.local
+      - TATU_DATABASE_URL=sqlite+aiosqlite:///./test.db
+    entrypoint: ["python", "-m", "pytest", "tests/", "-v"]
+    profiles:
+      - test
+
+  mailpit:
+    image: axllent/mailpit
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/vite.config.ts:/app/vite.config.ts
+    environment:
+      - NODE_ENV=development
+      - VITE_API_TARGET=http://backend:8000
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  frontend-build:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    volumes:
+      - ./frontend/src:/app/src
+    entrypoint: ["npm", "run", "build"]
+    profiles:
+      - build
+
+  frontend-lint:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    volumes:
+      - ./frontend/src:/app/src
+    entrypoint: ["npm", "run", "lint"]
+    profiles:
+      - lint
+
+  tatu-hook-test:
+    image: python:3.12-slim
+    working_dir: /tatu-hook
+    volumes:
+      - ./tatu-hook:/tatu-hook
+    entrypoint: ["sh", "-c", "pip install -e '.[dev,yara]' -q && python -m pytest tests/ -v"]
+    profiles:
+      - tatu-hook-test
+
+volumes:
+  pgdata:

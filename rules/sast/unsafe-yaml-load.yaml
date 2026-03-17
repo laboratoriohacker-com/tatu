@@ -1,0 +1,32 @@
+id: sast-unsafe-yaml-load
+info:
+  name: Unsafe YAML Deserialization
+  author: tatu-blue-team
+  severity: critical
+  category: sast
+  compliance:
+    - SOC2 CC8.1
+    - OWASP A08:2021
+    - ISO 27001 A.8.28
+    - PCI DSS Req 6.2
+    - NIST CSF PR.IP-2
+    - FedRAMP SA-11
+    - DORA Art. 10
+  description: Detects usage of unsafe yaml.load() which can lead to Remote Code Execution. Use safe_load() instead.
+  tags:
+    - python
+    - rce
+    - deserialization
+
+hook:
+  event: PreToolUse
+  matcher: Write|Edit
+  action: block
+  mode: audit
+
+detect:
+  type: regex
+  patterns:
+    - '\byaml\.load\('
+
+message: "Unsafe YAML deserialization detected. 'yaml.load()' is vulnerable to RCE. Use 'yaml.safe_load()' to parse untrusted input safely."

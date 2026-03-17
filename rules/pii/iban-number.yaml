@@ -1,0 +1,30 @@
+id: iban-number
+info:
+  name: IBAN Bank Account
+  author: tatu-core
+  severity: warning
+  category: pii
+  compliance:
+    - GDPR Art. 4
+    - ISO 27001 A.18.1.4
+    - PCI DSS Req 3.4
+    - NIST CSF PR.DS-5
+    - DORA Art. 9
+  description: Detects IBAN bank account numbers across various European countries.
+  tags:
+    - pii
+    - gdpr
+    - banking
+
+hook:
+  event: PreToolUse
+  matcher: Write|Edit
+  action: warn
+  mode: audit
+
+detect:
+  type: regex
+  patterns:
+    - '\b[A-Z]{2}\d{2}[A-Z0-9]{11,30}\b'
+
+message: "IBAN (International Bank Account Number) detected. Hardcoding financial identifiers may violate GDPR data minimization principles."

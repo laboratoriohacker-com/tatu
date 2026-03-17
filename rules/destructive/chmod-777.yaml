@@ -1,0 +1,25 @@
+id: chmod-777
+info:
+  name: Insecure File Permissions (777)
+  author: tatu-core
+  severity: warning
+  category: destructive
+  compliance:
+    - SOC2 CC6.1
+  description: Detects chmod 777 commands which grant global read/write/execute permissions.
+  tags:
+    - security
+    - permissions
+
+hook:
+  event: PreToolUse
+  matcher: Bash
+  action: block
+  mode: audit
+
+detect:
+  type: regex
+  patterns:
+    - '\bchmod\s+(?:-R\s+)?777\b'
+
+message: "Setting file permissions to 777 is insecure. Use more restrictive permissions (e.g., 755 or 644)."

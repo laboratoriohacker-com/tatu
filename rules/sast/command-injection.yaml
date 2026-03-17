@@ -1,0 +1,34 @@
+id: sast-command-injection
+info:
+  name: OS Command Injection Sink
+  author: tatu-core
+  severity: critical
+  category: sast
+  compliance:
+    - SOC2 CC8.1
+    - ISO 27001 A.8.28
+    - ISO 27001 A.14.2
+    - PCI DSS Req 6.2.3
+    - NIST CSF PR.IP-2
+    - FedRAMP SA-11
+    - DORA Art. 10
+  tags:
+    - sast
+    - command-injection
+    - owasp-a03
+
+hook:
+  event: PreToolUse
+  matcher: Write|Edit
+  action: block
+  mode: audit
+
+detect:
+  type: regex
+  patterns:
+    - '\bos\.system\s*\('
+    - '\bos\.popen\s*\('
+    - 'subprocess\.\w+\(.*shell\s*=\s*True'
+    - '\beval\s*\(\s*input'
+
+message: "Potential command injection sink detected. Avoid os.system, os.popen, subprocess with shell=True, or eval with user input. Use subprocess with a list of arguments and shell=False."
