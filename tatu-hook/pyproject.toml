@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tatu-hook"
-version = "0.2.0"
+version = "1.0.0"
 description = "Security hooks for the Tatu DevSecOps platform"
 readme = "README.md"
 license = "MIT"
