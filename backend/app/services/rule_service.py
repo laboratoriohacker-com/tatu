@@ -121,13 +121,20 @@ async def clone_to_custom(db: AsyncSession, rule_id: str) -> Rule | None:
 
 
 async def upsert_builtin_rule(db: AsyncSession, rule_data: dict) -> None:
-    """Upsert a built-in rule. Only updates if the existing rule has source='builtin'."""
+    """Upsert a built-in rule. Only updates if the existing rule has source='builtin'.
+
+    Preserves user-configurable fields (mode, action, enabled) so that dashboard
+    edits survive container restarts.
+    """
+    # Fields that users can change via the dashboard — never overwrite these on existing rules
+    _USER_CONFIGURABLE = {"mode", "action", "enabled"}
+
     existing = await db.get(Rule, rule_data["id"])
     if existing is None:
         rule = Rule(**rule_data, source="builtin")
         db.add(rule)
     elif existing.source == "builtin":
         for field, value in rule_data.items():
-            if field != "id":
+            if field != "id" and field not in _USER_CONFIGURABLE:
                 setattr(existing, field, value)
     await db.commit()
