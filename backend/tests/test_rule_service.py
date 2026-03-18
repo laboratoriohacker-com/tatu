@@ -320,8 +320,10 @@ async def test_upsert_builtin_rule_updates_existing_builtin(db_session: AsyncSes
     result = await db_session.execute(select(Rule).where(Rule.id == "builtin-secrets-v1"))
     rule = result.scalar_one_or_none()
     assert rule is not None
+    # Non-configurable fields (like name) are updated from disk
     assert rule.name == "Secrets Detection v2"
-    assert rule.action == "warn"
+    # User-configurable fields (mode, action, enabled) are preserved
+    assert rule.action == "block"
 
 
 @pytest.mark.asyncio
