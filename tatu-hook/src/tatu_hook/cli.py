@@ -21,6 +21,9 @@ from tatu_hook.platform import (
     resolve_config_path,
     get_hook_entries,
     has_tatu_hook as platform_has_tatu_hook,
+    detect_platform,
+    format_cursor_allow,
+    format_cursor_deny,
 )
 
 _SEVERITY_MAP = {
@@ -199,7 +202,14 @@ def run_hook(event: str, raw_input: str, tatu_dir: str | None = None) -> dict:
     content = extract_content(hook_input)
 
     tool_name = hook_input.get("tool_name", "")
-    hook_event_name = "PreToolUse" if event == "pre" else "PostToolUse"
+    # Map CLI event to internal hook event name
+    _event_to_hook = {
+        "pre": "PreToolUse",
+        "post": "PostToolUse",
+        "pre-shell": "PreToolUse",
+        "pre-read": "PreToolUse",
+    }
+    hook_event_name = _event_to_hook.get(event, "PreToolUse")
 
     results = evaluate_rules(rules, tool_name, content, hook_event_name)
 
@@ -317,32 +327,82 @@ def main(argv: list[str] | None = None) -> None:
         tatu_dir = args.tatu_dir
         event = args.event
 
+        # Map to Cursor event names for output formatting
+        _event_to_cursor = {
+            "pre": "preToolUse",
+            "post": "postToolUse",
+            "pre-shell": "beforeShellExecution",
+            "pre-read": "beforeReadFile",
+            "session-start": "sessionStart",
+        }
+
         if event == "session-start":
             rules = sync_rules(tatu_dir)
-            hook_event_name = "SessionStart"
-            response = format_allow_response(hook_event_name, f"Synced {len(rules)} rule(s).")
+            msg = f"Synced {len(rules)} rule(s)."
+            # Read stdin to detect platform (Cursor sends JSON on sessionStart)
+            raw_input = sys.stdin.read().strip()
+            platform = "claude"
+            if raw_input:
+                try:
+                    input_data = json.loads(raw_input)
+                    platform = detect_platform(input_data)
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            if platform == "cursor":
+                response = format_cursor_allow("sessionStart", msg)
+            else:
+                response = format_allow_response("SessionStart", msg)
             sys.stdout.write(response + "\n")
             sys.exit(0)
 
         raw_input = sys.stdin.read()
 
-        if event == "pre":
-            hook_event_name = "PreToolUse"
-        else:
-            hook_event_name = "PostToolUse"
+        # Detect platform for output formatting
+        try:
+            input_data = json.loads(raw_input)
+            platform = detect_platform(input_data)
+        except (json.JSONDecodeError, TypeError):
+            platform = "claude"
 
-        result = run_hook(event, raw_input, tatu_dir)
+        # Map event to internal hook event name for Claude output
+        _event_to_hook = {
+            "pre": "PreToolUse",
+            "post": "PostToolUse",
+            "pre-shell": "PreToolUse",
+            "pre-read": "PreToolUse",
+        }
+        hook_event_name = _event_to_hook.get(event, "PreToolUse")
 
-        if result["decision"] == "deny":
-            response = format_deny_response(hook_event_name, result["context"] or "Blocked by policy")
-            sys.stderr.write(response + "\n")
-            flush_reports()
-            sys.exit(2)
-        else:
-            response = format_allow_response(hook_event_name, result["context"])
-            sys.stdout.write(response + "\n")
-            flush_reports()
+        # Fail-open: any unhandled error results in allow + exit 0
+        try:
+            result = run_hook(event, raw_input, tatu_dir)
+        except Exception:
+            sys.stdout.write("{}\n")
             sys.exit(0)
+
+        if platform == "cursor":
+            cursor_event = _event_to_cursor.get(event, "preToolUse")
+            if result["decision"] == "deny":
+                response = format_cursor_deny(cursor_event, result["context"] or "Blocked by policy")
+                sys.stderr.write(response + "\n")
+                flush_reports()
+                sys.exit(2)
+            else:
+                response = format_cursor_allow(cursor_event, result["context"])
+                sys.stdout.write(response + "\n")
+                flush_reports()
+                sys.exit(0)
+        else:
+            if result["decision"] == "deny":
+                response = format_deny_response(hook_event_name, result["context"] or "Blocked by policy")
+                sys.stderr.write(response + "\n")
+                flush_reports()
+                sys.exit(2)
+            else:
+                response = format_allow_response(hook_event_name, result["context"])
+                sys.stdout.write(response + "\n")
+                flush_reports()
+                sys.exit(0)
 
 
 if __name__ == "__main__":

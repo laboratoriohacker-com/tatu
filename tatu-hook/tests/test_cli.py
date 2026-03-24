@@ -523,3 +523,88 @@ class TestRegisterHooksCursor:
         _, mod2 = register_hooks_cursor("global")
         assert mod1 is True
         assert mod2 is False
+
+
+# ---------------------------------------------------------------------------
+# pre-shell / pre-read events
+# ---------------------------------------------------------------------------
+
+CURSOR_SHELL_INPUT = json.dumps({
+    "hook_event_name": "beforeShellExecution",
+    "command": "rm -rf /",
+    "cwd": "/project",
+    "session_id": "cursor-sess-1",
+    "cursor_version": "1.0.0",
+})
+
+DESTRUCTIVE_CMD_RULE = """id: test-rm-rf
+info:
+  name: rm -rf Protection
+  severity: critical
+  category: destructive
+hook:
+  event: PreToolUse
+  matcher: Bash
+  action: block
+  mode: strict
+detect:
+  type: regex
+  patterns:
+    - 'rm\\s+-(r|f|rf|fr)\\s'
+message: "Destructive rm command detected"
+"""
+
+
+class TestRunHookPreShell:
+    def test_pre_shell_blocks_destructive_command(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _setup_dir(tmpdir, DESTRUCTIVE_CMD_RULE)
+            result = run_hook("pre-shell", CURSOR_SHELL_INPUT, tatu_dir=tmpdir)
+        assert result["decision"] == "deny"
+        assert "Destructive" in result["context"] or "rm" in result["context"].lower()
+
+    def test_pre_shell_allows_safe_command(self):
+        safe_input = json.dumps({
+            "hook_event_name": "beforeShellExecution",
+            "command": "ls -la",
+            "cwd": "/project",
+            "session_id": "cursor-sess-2",
+            "cursor_version": "1.0.0",
+        })
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _setup_dir(tmpdir, DESTRUCTIVE_CMD_RULE)
+            result = run_hook("pre-shell", safe_input, tatu_dir=tmpdir)
+        assert result["decision"] == "allow"
+
+
+class TestRunHookPreRead:
+    def test_pre_read_blocks_file_with_cpf(self, tmp_path):
+        tatu_dir = str(tmp_path / "tatu")
+        os.makedirs(tatu_dir)
+        _setup_dir(tatu_dir, CPF_BLOCK_RULE)
+
+        cursor_input = json.dumps({
+            "hook_event_name": "beforeReadFile",
+            "file_path": str(tmp_path / "data.txt"),
+            "content": "Client CPF: " + "928.385." + "640-64",
+            "session_id": "cursor-sess-3",
+            "cursor_version": "1.0.0",
+        })
+        result = run_hook("pre-read", cursor_input, tatu_dir=tatu_dir)
+        assert result["decision"] == "deny"
+        assert "CPF" in result["context"]
+
+    def test_pre_read_allows_clean_content(self, tmp_path):
+        tatu_dir = str(tmp_path / "tatu")
+        os.makedirs(tatu_dir)
+        _setup_dir(tatu_dir, CPF_BLOCK_RULE)
+
+        cursor_input = json.dumps({
+            "hook_event_name": "beforeReadFile",
+            "file_path": str(tmp_path / "clean.txt"),
+            "content": "No sensitive data here",
+            "session_id": "cursor-sess-4",
+            "cursor_version": "1.0.0",
+        })
+        result = run_hook("pre-read", cursor_input, tatu_dir=tatu_dir)
+        assert result["decision"] == "allow"
