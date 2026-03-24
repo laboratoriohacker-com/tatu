@@ -201,6 +201,10 @@ def run_hook(event: str, raw_input: str, tatu_dir: str | None = None) -> dict:
     hook_input = parse_hook_input(raw_input)
     content = extract_content(hook_input)
 
+    # Detect platform from raw input for metadata
+    raw_data = hook_input.get("raw", {})
+    platform = detect_platform(raw_data)
+
     tool_name = hook_input.get("tool_name", "")
     # Map CLI event to internal hook event name
     _event_to_hook = {
@@ -239,6 +243,7 @@ def run_hook(event: str, raw_input: str, tatu_dir: str | None = None) -> dict:
                 "matched_text": match.get("matched", ""),
                 "matched_lines": match.get("matched_lines", []),
                 "file_path": file_path,
+                "platform": platform,
             },
         })
 

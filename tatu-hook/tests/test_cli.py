@@ -608,3 +608,32 @@ class TestRunHookPreRead:
         })
         result = run_hook("pre-read", cursor_input, tatu_dir=tatu_dir)
         assert result["decision"] == "allow"
+
+
+# ---------------------------------------------------------------------------
+# platform metadata in event reporting
+# ---------------------------------------------------------------------------
+
+from unittest.mock import patch
+
+
+class TestEventReportingPlatform:
+    def test_cursor_events_include_platform_metadata(self):
+        """Events from Cursor input should include platform=cursor in metadata."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _setup_dir(tmpdir, DESTRUCTIVE_CMD_RULE)
+            with patch("tatu_hook.cli.report_event") as mock_report:
+                run_hook("pre-shell", CURSOR_SHELL_INPUT, tatu_dir=tmpdir)
+                if mock_report.called:
+                    event_data = mock_report.call_args[0][2]
+                    assert event_data["metadata"]["platform"] == "cursor"
+
+    def test_claude_events_include_platform_metadata(self):
+        """Events from Claude Code input should include platform=claude in metadata."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _setup_dir(tmpdir, STRICT_BLOCK_RULE)
+            with patch("tatu_hook.cli.report_event") as mock_report:
+                run_hook("pre", AWS_KEY_CONTENT, tatu_dir=tmpdir)
+                if mock_report.called:
+                    event_data = mock_report.call_args[0][2]
+                    assert event_data["metadata"]["platform"] == "claude"
