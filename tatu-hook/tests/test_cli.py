@@ -7,7 +7,8 @@ import tempfile
 
 import pytest
 
-from tatu_hook.cli import run_hook, register_hooks, register_hooks_cursor, _has_tatu_hook
+from tatu_hook.cli import run_hook, register_hooks, register_hooks_cursor
+from tatu_hook.platform import has_tatu_hook
 from tatu_hook.sync import save_manifest, save_rules_to_cache
 
 STRICT_BLOCK_RULE = """id: test-block
@@ -351,7 +352,7 @@ class TestRegisterHooks:
     def test_register_hooks_empty_file(self, tmp_path, monkeypatch):
         """Creates settings file with all 3 hook entries."""
         settings_file = tmp_path / ".claude" / "settings.json"
-        monkeypatch.setattr("tatu_hook.cli._resolve_settings_path", lambda scope: str(settings_file))
+        monkeypatch.setattr("tatu_hook.cli.resolve_config_path", lambda platform, scope: str(settings_file))
 
         path, modified = register_hooks("global")
 
@@ -371,7 +372,7 @@ class TestRegisterHooks:
         settings_dir.mkdir()
         settings_file = settings_dir / "settings.json"
         settings_file.write_text(json.dumps({"model": "opus", "other": True}))
-        monkeypatch.setattr("tatu_hook.cli._resolve_settings_path", lambda scope: str(settings_file))
+        monkeypatch.setattr("tatu_hook.cli.resolve_config_path", lambda platform, scope: str(settings_file))
 
         path, modified = register_hooks("global")
 
@@ -384,7 +385,7 @@ class TestRegisterHooks:
     def test_register_hooks_dedup(self, tmp_path, monkeypatch):
         """No duplicate entries on re-run."""
         settings_file = tmp_path / ".claude" / "settings.json"
-        monkeypatch.setattr("tatu_hook.cli._resolve_settings_path", lambda scope: str(settings_file))
+        monkeypatch.setattr("tatu_hook.cli.resolve_config_path", lambda platform, scope: str(settings_file))
 
         _, modified1 = register_hooks("global")
         _, modified2 = register_hooks("global")
@@ -407,7 +408,7 @@ class TestRegisterHooks:
             }
         }
         settings_file.write_text(json.dumps(existing))
-        monkeypatch.setattr("tatu_hook.cli._resolve_settings_path", lambda scope: str(settings_file))
+        monkeypatch.setattr("tatu_hook.cli.resolve_config_path", lambda platform, scope: str(settings_file))
 
         register_hooks("global")
 
@@ -423,7 +424,7 @@ class TestRegisterHooks:
     def test_register_hooks_creates_parent_dir(self, tmp_path, monkeypatch):
         """Creates .claude/ directory if missing."""
         settings_file = tmp_path / "new_dir" / ".claude" / "settings.json"
-        monkeypatch.setattr("tatu_hook.cli._resolve_settings_path", lambda scope: str(settings_file))
+        monkeypatch.setattr("tatu_hook.cli.resolve_config_path", lambda platform, scope: str(settings_file))
 
         path, modified = register_hooks("global")
 
@@ -436,7 +437,7 @@ class TestRegisterHooks:
         settings_dir.mkdir()
         settings_file = settings_dir / "settings.json"
         settings_file.write_text("{ not valid json")
-        monkeypatch.setattr("tatu_hook.cli._resolve_settings_path", lambda scope: str(settings_file))
+        monkeypatch.setattr("tatu_hook.cli.resolve_config_path", lambda platform, scope: str(settings_file))
 
         with pytest.raises(json.JSONDecodeError):
             register_hooks("global")
@@ -447,22 +448,22 @@ class TestHasTatuHook:
         entries = [
             {"hooks": [{"type": "command", "command": "tatu-hook run --event pre"}]}
         ]
-        assert _has_tatu_hook(entries) is True
+        assert has_tatu_hook("claude", entries) is True
 
     def test_no_tatu_hook(self):
         entries = [
             {"hooks": [{"type": "command", "command": "other-hook"}]}
         ]
-        assert _has_tatu_hook(entries) is False
+        assert has_tatu_hook("claude", entries) is False
 
     def test_empty_entries(self):
-        assert _has_tatu_hook([]) is False
+        assert has_tatu_hook("claude", []) is False
 
     def test_detects_custom_tatu_hook(self):
         entries = [
             {"hooks": [{"type": "command", "command": "tatu-hook run --event pre --tatu-dir /custom"}]}
         ]
-        assert _has_tatu_hook(entries) is True
+        assert has_tatu_hook("claude", entries) is True
 
 
 # ---------------------------------------------------------------------------

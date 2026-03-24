@@ -85,43 +85,12 @@ def _enhance_message(message: str, matched_lines: list[int]) -> str:
     return f"{message} Detected at {lines_str}. Ask the developer to provide a redacted version."
 
 
-_HOOK_ENTRIES = {
-    "SessionStart": {
-        "hooks": [{"type": "command", "command": "tatu-hook run --event session-start"}],
-    },
-    "PreToolUse": {
-        "matcher": ".*",
-        "hooks": [{"type": "command", "command": "tatu-hook run --event pre"}],
-    },
-    "PostToolUse": {
-        "matcher": ".*",
-        "hooks": [{"type": "command", "command": "tatu-hook run --event post"}],
-    },
-}
-
-
-def _has_tatu_hook(entries: list) -> bool:
-    """Check if tatu-hook is already registered in a hook event array."""
-    for entry in entries:
-        for hook_obj in entry.get("hooks", []):
-            if "tatu-hook run" in hook_obj.get("command", ""):
-                return True
-    return False
-
-
-def _resolve_settings_path(scope: str) -> str:
-    """Resolve the Claude Code settings.json path."""
-    if scope == "project":
-        return os.path.join(os.getcwd(), ".claude", "settings.json")
-    return os.path.expanduser(os.path.join("~", ".claude", "settings.json"))
-
-
 def register_hooks(scope: str = "global") -> tuple[str, bool]:
     """Register tatu-hook in Claude Code settings.json.
 
     Returns (settings_path, was_modified).
     """
-    settings_path = _resolve_settings_path(scope)
+    settings_path = resolve_config_path("claude", scope)
 
     # Create parent directory if needed
     parent = os.path.dirname(settings_path)
@@ -137,11 +106,12 @@ def register_hooks(scope: str = "global") -> tuple[str, bool]:
     if "hooks" not in settings:
         settings["hooks"] = {}
 
+    entries = get_hook_entries("claude")
     modified = False
-    for event_name, entry in _HOOK_ENTRIES.items():
+    for event_name, entry in entries.items():
         if event_name not in settings["hooks"]:
             settings["hooks"][event_name] = []
-        if not _has_tatu_hook(settings["hooks"][event_name]):
+        if not platform_has_tatu_hook("claude", settings["hooks"][event_name]):
             settings["hooks"][event_name].append(entry)
             modified = True
 
@@ -264,7 +234,7 @@ def run_hook(event: str, raw_input: str, tatu_dir: str | None = None) -> dict:
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        description=f"Tatu Hook v{__version__} — Claude Code security hook"
+        description=f"Tatu Hook v{__version__} — security hook for Claude Code and Cursor"
     )
     p.add_argument("--version", action="version", version=f"tatu-hook {__version__}")
     sub = p.add_subparsers(dest="command")
@@ -276,7 +246,7 @@ def build_parser() -> argparse.ArgumentParser:
     init_parser.add_argument("--scope", choices=["global", "project"], default="global",
                              help="Where to register hooks (default: global)")
     init_parser.add_argument("--no-register", action="store_true",
-                             help="Skip hook registration in Claude Code settings")
+                             help="Skip hook registration in IDE settings")
     init_parser.add_argument("--platform", choices=["claude", "cursor"], default="claude",
                              help="Target platform (default: claude)")
 
