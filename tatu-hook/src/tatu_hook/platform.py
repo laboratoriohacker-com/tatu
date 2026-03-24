@@ -29,3 +29,60 @@ def normalize_tool_name(platform: str, tool_name: str) -> str:
     if platform == "cursor":
         return _CURSOR_TOOL_MAP.get(tool_name, tool_name)
     return tool_name
+
+
+# Claude Code hook entries (existing format from cli.py)
+_CLAUDE_HOOK_ENTRIES: dict = {
+    "SessionStart": {
+        "hooks": [{"type": "command", "command": "tatu-hook run --event session-start"}],
+    },
+    "PreToolUse": {
+        "matcher": ".*",
+        "hooks": [{"type": "command", "command": "tatu-hook run --event pre"}],
+    },
+    "PostToolUse": {
+        "matcher": ".*",
+        "hooks": [{"type": "command", "command": "tatu-hook run --event post"}],
+    },
+}
+
+# Cursor hook entries (flat array format)
+_CURSOR_HOOK_ENTRIES: dict = {
+    "sessionStart": [
+        {"type": "command", "command": "tatu-hook run --event session-start"},
+    ],
+    "preToolUse": [
+        {"type": "command", "command": "tatu-hook run --event pre"},
+    ],
+    "postToolUse": [
+        {"type": "command", "command": "tatu-hook run --event post"},
+    ],
+    "beforeShellExecution": [
+        {"type": "command", "command": "tatu-hook run --event pre-shell"},
+    ],
+    "beforeReadFile": [
+        {"type": "command", "command": "tatu-hook run --event pre-read"},
+    ],
+}
+
+
+def get_hook_entries(platform: str) -> dict:
+    """Return the hook registration entries for a platform."""
+    if platform == "cursor":
+        return _CURSOR_HOOK_ENTRIES
+    return _CLAUDE_HOOK_ENTRIES
+
+
+def has_tatu_hook(platform: str, entries: list) -> bool:
+    """Check if tatu-hook is already registered in a hook event array."""
+    if platform == "cursor":
+        for entry in entries:
+            if "tatu-hook run" in entry.get("command", ""):
+                return True
+        return False
+    # Claude Code: nested under entry.hooks[].command
+    for entry in entries:
+        for hook_obj in entry.get("hooks", []):
+            if "tatu-hook run" in hook_obj.get("command", ""):
+                return True
+    return False
