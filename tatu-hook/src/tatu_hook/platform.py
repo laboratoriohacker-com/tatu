@@ -1,6 +1,7 @@
 """Platform abstraction for IDE-specific hook differences."""
 from __future__ import annotations
 
+import json
 import os
 
 
@@ -86,3 +87,36 @@ def has_tatu_hook(platform: str, entries: list) -> bool:
             if "tatu-hook run" in hook_obj.get("command", ""):
                 return True
     return False
+
+
+def detect_platform(data: dict) -> str:
+    """Detect platform from raw hook input JSON."""
+    if "cursor_version" in data:
+        return "cursor"
+    event = data.get("hook_event_name", "")
+    if event and event[0].islower():
+        return "cursor"
+    return "claude"
+
+
+def format_cursor_allow(event: str, context: str | None = None) -> str:
+    """Format a Cursor allow response."""
+    if event in ("preToolUse", "beforeShellExecution", "beforeReadFile"):
+        out: dict = {"permission": "allow"}
+        if context:
+            out["agent_message"] = context
+        return json.dumps(out)
+    # sessionStart, postToolUse
+    out = {}
+    if context:
+        out["additional_context"] = context
+    return json.dumps(out)
+
+
+def format_cursor_deny(event: str, reason: str) -> str:
+    """Format a Cursor deny response."""
+    return json.dumps({
+        "permission": "deny",
+        "user_message": reason,
+        "agent_message": reason,
+    })

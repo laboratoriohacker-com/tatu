@@ -1,9 +1,13 @@
 """Tests for platform abstraction module."""
 from __future__ import annotations
 
+import json
 import os
 
-from tatu_hook.platform import resolve_config_path, PLATFORMS, get_hook_entries, has_tatu_hook
+from tatu_hook.platform import (
+    resolve_config_path, PLATFORMS, get_hook_entries, has_tatu_hook,
+    detect_platform, format_cursor_allow, format_cursor_deny,
+)
 
 
 def test_claude_global_config_path():
@@ -77,3 +81,61 @@ def test_has_tatu_hook_cursor_format():
 def test_has_tatu_hook_empty():
     assert has_tatu_hook("claude", []) is False
     assert has_tatu_hook("cursor", []) is False
+
+
+def test_detect_cursor_by_cursor_version():
+    data = {"cursor_version": "1.0.0", "hook_event_name": "preToolUse"}
+    assert detect_platform(data) == "cursor"
+
+
+def test_detect_claude_without_cursor_version():
+    data = {"hook_event_name": "PreToolUse", "tool_name": "Write"}
+    assert detect_platform(data) == "claude"
+
+
+def test_detect_cursor_by_camelcase_event():
+    data = {"hook_event_name": "preToolUse"}
+    assert detect_platform(data) == "cursor"
+
+
+def test_detect_cursor_before_shell_execution():
+    data = {"hook_event_name": "beforeShellExecution", "command": "ls"}
+    assert detect_platform(data) == "cursor"
+
+
+def test_detect_platform_empty_input():
+    assert detect_platform({}) == "claude"
+
+
+def test_format_cursor_allow_pretooluse():
+    result = json.loads(format_cursor_allow("preToolUse"))
+    assert result["permission"] == "allow"
+
+
+def test_format_cursor_allow_with_context():
+    result = json.loads(format_cursor_allow("postToolUse", context="scan ok"))
+    assert result["additional_context"] == "scan ok"
+
+
+def test_format_cursor_allow_session_start():
+    result = json.loads(format_cursor_allow("sessionStart", context="Synced 46 rule(s)."))
+    assert result["additional_context"] == "Synced 46 rule(s)."
+
+
+def test_format_cursor_deny_pretooluse():
+    result = json.loads(format_cursor_deny("preToolUse", "[BLOCKED] Secret found"))
+    assert result["permission"] == "deny"
+    assert result["user_message"] == "[BLOCKED] Secret found"
+    assert result["agent_message"] == "[BLOCKED] Secret found"
+
+
+def test_format_cursor_deny_before_shell():
+    result = json.loads(format_cursor_deny("beforeShellExecution", "Destructive command"))
+    assert result["permission"] == "deny"
+    assert result["user_message"] == "Destructive command"
+
+
+def test_format_cursor_deny_before_read():
+    result = json.loads(format_cursor_deny("beforeReadFile", "PII in file"))
+    assert result["permission"] == "deny"
+    assert result["user_message"] == "PII in file"
