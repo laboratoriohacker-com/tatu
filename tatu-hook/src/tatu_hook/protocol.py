@@ -18,12 +18,63 @@ def _debug_log(msg: str) -> None:
 def parse_hook_input(raw: str) -> dict:
     data = json.loads(raw)
     _debug_log(f"RAW INPUT: {json.dumps(data, indent=2, default=str)[:2000]}")
+
+    event = data.get("hook_event_name", "")
+
+    # Normalize Cursor-specific events to internal format
+    if event == "beforeShellExecution":
+        return {
+            "hook_event": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {"command": data.get("command", "")},
+            "tool_response": {},
+            "session_id": data.get("session_id", data.get("conversation_id", "")),
+            "cwd": data.get("cwd", ""),
+            "raw": data,
+        }
+
+    if event == "beforeReadFile":
+        tool_input = {"file_path": data.get("file_path", "")}
+        content = data.get("content", "")
+        if content:
+            tool_input["content"] = content
+        return {
+            "hook_event": "PreToolUse",
+            "tool_name": "Read",
+            "tool_input": tool_input,
+            "tool_response": {},
+            "session_id": data.get("session_id", data.get("conversation_id", "")),
+            "cwd": data.get("cwd", ""),
+            "raw": data,
+        }
+
+    # Normalize Cursor tool names (Shell -> Bash)
+    tool_name = data.get("tool_name", "")
+    if tool_name == "Shell":
+        tool_name = "Bash"
+
+    # Normalize Cursor camelCase events to PascalCase
+    event_map = {"preToolUse": "PreToolUse", "postToolUse": "PostToolUse", "sessionStart": "SessionStart"}
+    hook_event = event_map.get(event, event)
+
+    # Cursor postToolUse sends tool_output as a string, not tool_response dict
+    tool_response = data.get("tool_response", {})
+    if not tool_response and "tool_output" in data:
+        raw_output = data["tool_output"]
+        if isinstance(raw_output, str):
+            try:
+                tool_response = json.loads(raw_output)
+            except (json.JSONDecodeError, TypeError):
+                tool_response = {"stdout": raw_output}
+        elif isinstance(raw_output, dict):
+            tool_response = raw_output
+
     return {
-        "hook_event": data.get("hook_event_name", ""),
-        "tool_name": data.get("tool_name", ""),
+        "hook_event": hook_event,
+        "tool_name": tool_name,
         "tool_input": data.get("tool_input", {}),
-        "tool_response": data.get("tool_response", {}),
-        "session_id": data.get("session_id", ""),
+        "tool_response": tool_response,
+        "session_id": data.get("session_id", data.get("conversation_id", "")),
         "cwd": data.get("cwd", ""),
         "raw": data,
     }

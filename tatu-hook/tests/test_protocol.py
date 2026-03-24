@@ -308,3 +308,120 @@ def test_extract_content_no_prescan_for_write_pretooluse(tmp_path):
     content = extract_content(hook_input)
     assert "TOP SECRET DATA" not in content
     assert "new content" in content
+
+
+# ---------------------------------------------------------------------------
+# Cursor input normalization
+# ---------------------------------------------------------------------------
+
+def test_parse_cursor_before_shell_execution():
+    """beforeShellExecution normalizes to Bash PreToolUse."""
+    raw = json.dumps({
+        "hook_event_name": "beforeShellExecution",
+        "command": "rm -rf /important",
+        "cwd": "/project",
+        "session_id": "sess-123",
+    })
+    result = parse_hook_input(raw)
+    assert result["tool_name"] == "Bash"
+    assert result["tool_input"] == {"command": "rm -rf /important"}
+    assert result["hook_event"] == "PreToolUse"
+    assert result["cwd"] == "/project"
+    assert result["session_id"] == "sess-123"
+
+
+def test_extract_content_cursor_shell():
+    """Content from normalized beforeShellExecution input."""
+    hook_input = {
+        "hook_event": "PreToolUse",
+        "tool_name": "Bash",
+        "tool_input": {"command": "rm -rf /"},
+        "tool_response": {},
+    }
+    content = extract_content(hook_input)
+    assert "rm -rf /" in content
+
+
+def test_parse_cursor_before_read_file():
+    """beforeReadFile normalizes to Read PreToolUse."""
+    raw = json.dumps({
+        "hook_event_name": "beforeReadFile",
+        "file_path": "/project/.env",
+        "content": "SECRET=abc123",
+        "session_id": "sess-456",
+    })
+    result = parse_hook_input(raw)
+    assert result["tool_name"] == "Read"
+    assert result["tool_input"]["file_path"] == "/project/.env"
+    assert result["tool_input"]["content"] == "SECRET=abc123"
+    assert result["hook_event"] == "PreToolUse"
+
+
+def test_parse_cursor_before_read_file_no_content():
+    """beforeReadFile without content field still normalizes."""
+    raw = json.dumps({
+        "hook_event_name": "beforeReadFile",
+        "file_path": "/project/data.txt",
+        "session_id": "sess-789",
+    })
+    result = parse_hook_input(raw)
+    assert result["tool_name"] == "Read"
+    assert result["tool_input"]["file_path"] == "/project/data.txt"
+    assert result["tool_input"].get("content", "") == ""
+
+
+def test_parse_cursor_pretooluse_normalizes_event_and_tool():
+    """Cursor preToolUse with Shell tool normalizes to PreToolUse + Bash."""
+    raw = json.dumps({
+        "hook_event_name": "preToolUse",
+        "tool_name": "Shell",
+        "tool_input": {"command": "npm install"},
+        "cursor_version": "1.0.0",
+        "session_id": "sess-100",
+        "cwd": "/project",
+    })
+    result = parse_hook_input(raw)
+    assert result["hook_event"] == "PreToolUse"
+    assert result["tool_name"] == "Bash"
+    assert result["session_id"] == "sess-100"
+
+
+def test_parse_cursor_posttooluse_with_tool_output_string():
+    """Cursor postToolUse sends tool_output as string, not tool_response dict."""
+    raw = json.dumps({
+        "hook_event_name": "postToolUse",
+        "tool_name": "Shell",
+        "tool_input": {"command": "cat secrets.env"},
+        "tool_output": '{"stdout":"SECRET=abc123"}',
+        "cursor_version": "1.0.0",
+        "session_id": "sess-200",
+    })
+    result = parse_hook_input(raw)
+    assert result["hook_event"] == "PostToolUse"
+    assert result["tool_name"] == "Bash"
+    assert result["tool_response"]["stdout"] == "SECRET=abc123"
+
+
+def test_parse_cursor_posttooluse_with_plain_string_output():
+    """Cursor postToolUse with non-JSON tool_output wraps as stdout."""
+    raw = json.dumps({
+        "hook_event_name": "postToolUse",
+        "tool_name": "Shell",
+        "tool_input": {"command": "echo hi"},
+        "tool_output": "plain text output",
+        "cursor_version": "1.0.0",
+    })
+    result = parse_hook_input(raw)
+    assert result["tool_response"] == {"stdout": "plain text output"}
+
+
+def test_extract_content_cursor_read_with_inline_content():
+    """beforeReadFile with content should scan the inline content."""
+    hook_input = {
+        "hook_event": "PreToolUse",
+        "tool_name": "Read",
+        "tool_input": {"file_path": "/project/.env", "content": "DB_PASSWORD=secret"},
+        "tool_response": {},
+    }
+    content = extract_content(hook_input)
+    assert "DB_PASSWORD=secret" in content
