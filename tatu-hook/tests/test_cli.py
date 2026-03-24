@@ -7,7 +7,7 @@ import tempfile
 
 import pytest
 
-from tatu_hook.cli import run_hook, register_hooks, _has_tatu_hook
+from tatu_hook.cli import run_hook, register_hooks, register_hooks_cursor, _has_tatu_hook
 from tatu_hook.sync import save_manifest, save_rules_to_cache
 
 STRICT_BLOCK_RULE = """id: test-block
@@ -463,3 +463,63 @@ class TestHasTatuHook:
             {"hooks": [{"type": "command", "command": "tatu-hook run --event pre --tatu-dir /custom"}]}
         ]
         assert _has_tatu_hook(entries) is True
+
+
+# ---------------------------------------------------------------------------
+# register_hooks_cursor
+# ---------------------------------------------------------------------------
+
+class TestRegisterHooksCursor:
+    def test_register_cursor_hooks_creates_file(self, tmp_path, monkeypatch):
+        """Creates hooks.json with 5 hook events."""
+        hooks_file = tmp_path / ".cursor" / "hooks.json"
+        monkeypatch.setattr(
+            "tatu_hook.cli.resolve_config_path",
+            lambda platform, scope: str(hooks_file),
+        )
+        path, modified = register_hooks_cursor("global")
+        assert modified is True
+        assert os.path.exists(path)
+        data = json.loads(hooks_file.read_text())
+        assert data["version"] == 1
+        assert set(data["hooks"].keys()) == {
+            "sessionStart", "preToolUse", "postToolUse",
+            "beforeShellExecution", "beforeReadFile",
+        }
+
+    def test_register_cursor_hooks_preserves_existing(self, tmp_path, monkeypatch):
+        """Preserves existing hooks from other tools."""
+        hooks_dir = tmp_path / ".cursor"
+        hooks_dir.mkdir()
+        hooks_file = hooks_dir / "hooks.json"
+        existing = {
+            "version": 1,
+            "hooks": {
+                "preToolUse": [
+                    {"type": "command", "command": "other-hook"}
+                ]
+            }
+        }
+        hooks_file.write_text(json.dumps(existing))
+        monkeypatch.setattr(
+            "tatu_hook.cli.resolve_config_path",
+            lambda platform, scope: str(hooks_file),
+        )
+        register_hooks_cursor("global")
+        data = json.loads(hooks_file.read_text())
+        assert len(data["hooks"]["preToolUse"]) == 2
+        commands = [e["command"] for e in data["hooks"]["preToolUse"]]
+        assert "other-hook" in commands
+        assert "tatu-hook run --event pre" in commands
+
+    def test_register_cursor_hooks_dedup(self, tmp_path, monkeypatch):
+        """No duplicate entries on re-run."""
+        hooks_file = tmp_path / ".cursor" / "hooks.json"
+        monkeypatch.setattr(
+            "tatu_hook.cli.resolve_config_path",
+            lambda platform, scope: str(hooks_file),
+        )
+        _, mod1 = register_hooks_cursor("global")
+        _, mod2 = register_hooks_cursor("global")
+        assert mod1 is True
+        assert mod2 is False

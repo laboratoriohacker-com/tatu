@@ -17,6 +17,11 @@ from tatu_hook.protocol import (
 )
 from tatu_hook.sync import load_manifest, save_manifest, load_rules_from_cache, sync_rules, ensure_tatu_dir
 from tatu_hook.reporter import report_event, flush as flush_reports
+from tatu_hook.platform import (
+    resolve_config_path,
+    get_hook_entries,
+    has_tatu_hook as platform_has_tatu_hook,
+)
 
 _SEVERITY_MAP = {
     "critical": "critical",
@@ -145,6 +150,40 @@ def register_hooks(scope: str = "global") -> tuple[str, bool]:
     return settings_path, modified
 
 
+def register_hooks_cursor(scope: str = "global") -> tuple[str, bool]:
+    """Register tatu-hook in Cursor hooks.json.
+
+    Returns (config_path, was_modified).
+    """
+    config_path = resolve_config_path("cursor", scope)
+    parent = os.path.dirname(config_path)
+    os.makedirs(parent, exist_ok=True)
+
+    config = {"version": 1, "hooks": {}}
+    if os.path.exists(config_path):
+        with open(config_path, encoding="utf-8") as f:
+            config = json.load(f)
+        if "hooks" not in config:
+            config["hooks"] = {}
+
+    entries = get_hook_entries("cursor")
+    modified = False
+    for event_name, event_entries in entries.items():
+        if event_name not in config["hooks"]:
+            config["hooks"][event_name] = []
+        if not platform_has_tatu_hook("cursor", config["hooks"][event_name]):
+            config["hooks"][event_name].extend(event_entries)
+            modified = True
+
+    if modified:
+        config["version"] = 1
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2)
+            f.write("\n")
+
+    return config_path, modified
+
+
 def run_hook(event: str, raw_input: str, tatu_dir: str | None = None) -> dict:
     """Core hook execution pipeline.
 
@@ -223,10 +262,12 @@ def build_parser() -> argparse.ArgumentParser:
                              help="Where to register hooks (default: global)")
     init_parser.add_argument("--no-register", action="store_true",
                              help="Skip hook registration in Claude Code settings")
+    init_parser.add_argument("--platform", choices=["claude", "cursor"], default="claude",
+                             help="Target platform (default: claude)")
 
     run_parser = sub.add_parser("run", help="Run hook event handler")
     run_parser.add_argument(
-        "--event", choices=["session-start", "pre", "post"], required=True,
+        "--event", choices=["session-start", "pre", "post", "pre-shell", "pre-read"], required=True,
     )
     run_parser.add_argument("--tatu-dir", default=None, help="Override tatu directory")
 
@@ -257,13 +298,16 @@ def main(argv: list[str] | None = None) -> None:
 
         if not args.no_register:
             try:
-                path, modified = register_hooks(args.scope)
+                if args.platform == "cursor":
+                    path, modified = register_hooks_cursor(args.scope)
+                else:
+                    path, modified = register_hooks(args.scope)
                 if modified:
                     print(f"Registered hooks in {path}")
                 else:
                     print(f"Hooks already registered in {path}")
             except (json.JSONDecodeError, ValueError):
-                print(f"Warning: Could not parse {_resolve_settings_path(args.scope)} — skipping hook registration.", file=sys.stderr)
+                print(f"Warning: Could not parse config — skipping hook registration.", file=sys.stderr)
             except OSError as e:
                 print(f"Warning: Could not register hooks — {e}", file=sys.stderr)
 
