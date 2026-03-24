@@ -73,25 +73,188 @@ Two new `--event` values for Cursor-specific hooks:
 
 Both map to existing rule event/matcher combinations — no rule schema changes needed.
 
-### 4. Protocol Changes (`protocol.py`)
+### 4. Cursor Wire Protocol (Input/Output JSON)
 
-Update input parsing to:
+#### 4.1 `sessionStart`
 
-1. **Auto-detect platform** from input JSON shape. Cursor sends `hook_event_name` field; Claude Code sends `tool_name` at top level.
-2. **Normalize** Cursor input fields to the internal `HookInput` format that the engine expects (`tool_name`, `tool_input`, `tool_response`, `session_id`, `cwd`).
-3. **Format output** according to detected platform. Cursor expects different response structures than Claude Code (e.g., for `preToolUse`, Cursor uses `permissionDecision`/`permissionDecisionReason` in `hookSpecificOutput`; for `beforeShellExecution`, it uses a different output shape).
+**Input (stdin):**
+```json
+{
+  "conversation_id": "string",
+  "hook_event_name": "sessionStart",
+  "cursor_version": "string",
+  "workspace_roots": ["/project"],
+  "user_email": "user@example.com",
+  "session_id": "unique-session-id"
+}
+```
 
-### 5. Event Reporting
+**Output (stdout):**
+```json
+{
+  "additional_context": "Synced 46 rule(s)."
+}
+```
+
+**Mapping:** `session_id` from input directly. `cwd` from `workspace_roots[0]`.
+
+#### 4.2 `preToolUse`
+
+**Input (stdin):**
+```json
+{
+  "hook_event_name": "preToolUse",
+  "tool_name": "Shell",
+  "tool_input": {"command": "npm install", "working_directory": "/project"},
+  "tool_use_id": "abc123",
+  "cwd": "/project",
+  "session_id": "unique-session-id"
+}
+```
+
+**Output — allow:**
+```json
+{
+  "permission": "allow"
+}
+```
+
+**Output — deny:**
+```json
+{
+  "permission": "deny",
+  "user_message": "[BLOCKED] Destructive command detected",
+  "agent_message": "Rule 'rm-rf-protection' blocked this action."
+}
+```
+
+**Mapping:** `tool_name` and `tool_input` map directly to internal format. Cursor uses `"Shell"` where Claude Code uses `"Bash"` — normalize in platform layer.
+
+#### 4.3 `postToolUse`
+
+**Input (stdin):**
+```json
+{
+  "hook_event_name": "postToolUse",
+  "tool_name": "Shell",
+  "tool_input": {"command": "cat secrets.env"},
+  "tool_output": "{\"stdout\":\"AWS_SECRET=AKIA...\"}",
+  "cwd": "/project",
+  "session_id": "unique-session-id"
+}
+```
+
+**Output:**
+```json
+{
+  "additional_context": "[ALERT] AWS key detected in command output."
+}
+```
+
+**Mapping:** `tool_output` (string) maps to `tool_response`. Parse as JSON if possible, extract `stdout`/`stderr`.
+
+#### 4.4 `beforeShellExecution`
+
+**Input (stdin):**
+```json
+{
+  "hook_event_name": "beforeShellExecution",
+  "command": "rm -rf /",
+  "cwd": "/project",
+  "sandbox": false,
+  "session_id": "unique-session-id"
+}
+```
+
+**Output — allow:**
+```json
+{
+  "permission": "allow"
+}
+```
+
+**Output — deny:**
+```json
+{
+  "permission": "deny",
+  "user_message": "[BLOCKED] Destructive command: rm -rf",
+  "agent_message": "Rule 'rm-rf-protection' blocked this shell command."
+}
+```
+
+**Content extraction:** The `command` field is the full shell command string. Wrap as `tool_input = {"command": command}` and set `tool_name = "Bash"` for rule evaluation.
+
+#### 4.5 `beforeReadFile`
+
+**Input (stdin):**
+```json
+{
+  "hook_event_name": "beforeReadFile",
+  "file_path": "/project/.env",
+  "content": "AWS_SECRET_KEY=AKIA...",
+  "session_id": "unique-session-id"
+}
+```
+
+**Output — allow:**
+```json
+{
+  "permission": "allow"
+}
+```
+
+**Output — deny:**
+```json
+{
+  "permission": "deny",
+  "user_message": "[BLOCKED] Secrets detected in file."
+}
+```
+
+**Content extraction:** If `content` is provided, scan it directly. Otherwise, pre-scan the file from disk (reuse existing file pre-scan logic from `extract_content`). Set `tool_name = "Read"` and `tool_input = {"file_path": file_path}` for rule evaluation.
+
+### 5. Platform Detection
+
+**Auto-detect platform** from the input JSON:
+- If `cursor_version` field is present → Cursor
+- If `hook_event_name` uses camelCase (`preToolUse`) → Cursor
+- Otherwise → Claude Code
+
+This is used by `run_hook()` to select the correct output formatter. The `--event` flag already determines input parsing (e.g., `pre-shell` is always Cursor).
+
+**Session ID resolution:**
+- Claude Code: `CLAUDE_SESSION_ID` env var or `session_id` from input JSON
+- Cursor: `session_id` from input JSON (always present), or `conversation_id` as fallback
+
+### 6. Architecture: `run_hook()` / `main()` Responsibility Split
+
+`run_hook()` remains **platform-agnostic**. It receives a normalized `HookInput` and returns a `(decision, context)` tuple. The `main()` function in `cli.py` owns:
+
+1. **Before `run_hook()`**: Parse raw stdin JSON using platform-specific parser → produce normalized `HookInput`
+2. **Call `run_hook()`**: Engine evaluation, event reporting (adds `platform` to metadata)
+3. **After `run_hook()`**: Format `(decision, context)` into platform-specific JSON output and set exit code
+
+This keeps the engine and core logic completely platform-unaware.
+
+### 7. Event Reporting
 
 No backend changes required. The reporter already sends `hook_event`, `tool_name`, and `metadata`. Add a `platform` field to event metadata (`"cursor"` or `"claude_code"`) so the dashboard can distinguish event sources.
 
-### 6. CLI Changes (`cli.py`)
+### 8. CLI Changes (`cli.py`)
 
 - Add `--platform` option to `tatu-hook init` (choices: `claude`, `cursor`; default: `claude`)
 - Add `pre-shell` and `pre-read` to `--event` choices in `tatu-hook run`
-- Platform detection in `run_hook()` to normalize input/output per platform
+- Refactor `register_hooks()` to use platform abstraction for config path resolution and config format generation
+- Refactor `_has_tatu_hook()` to handle both config structures (Claude Code nests under `hooks[event][].command`, Cursor uses same structure but different top-level format with `version` key)
 
-### 7. Scope of Changes
+### 9. Backwards Compatibility
+
+- Running `tatu-hook init` (no `--platform` flag) behaves exactly as today (Claude Code)
+- Running `tatu-hook init --platform cursor` is independent — it writes to `~/.cursor/hooks.json`, not touching `~/.claude/settings.json`
+- Users can run both `tatu-hook init` and `tatu-hook init --platform cursor` to register in both IDEs simultaneously
+- The `tatu-hook run` command auto-detects platform from input JSON, so the same binary serves both
+
+### 10. Scope of Changes
 
 **Modified files:**
 - `tatu-hook/src/tatu_hook/cli.py` — `--platform` flag on init, new event handlers, platform-aware registration
@@ -108,10 +271,32 @@ No backend changes required. The reporter already sends `hook_event`, `tool_name
 - Backend API — No changes needed
 - Frontend — No changes needed
 
+### 11. Tool Name Mapping
+
+Cursor uses different tool names than Claude Code in some cases:
+
+| Cursor | Internal (Claude Code) |
+|--------|----------------------|
+| `Shell` | `Bash` |
+| `Read` | `Read` |
+| `Write` | `Write` |
+| `Edit` | `Edit` |
+
+The platform layer normalizes `Shell` → `Bash` on input so rules with `matcher: Bash` work for both platforms.
+
 ## Testing
 
-- Unit tests for platform detection (env var and JSON shape)
+**Happy path:**
+- Unit tests for platform detection (`cursor_version` field, camelCase events)
 - Unit tests for Cursor input normalization (all 5 event types)
-- Unit tests for Cursor output formatting
-- Unit tests for hook registration config generation
+- Unit tests for Cursor output formatting (allow and deny for each event)
+- Unit tests for hook registration config generation (global and project scope)
+- Unit tests for tool name mapping (`Shell` → `Bash`)
 - Integration test: `tatu-hook init --platform cursor` writes correct `hooks.json`
+
+**Error/edge cases:**
+- Malformed Cursor JSON input (missing fields, invalid JSON) — should fail-open (exit 0)
+- Unrecognized event type from Cursor — should fail-open (exit 0)
+- `beforeReadFile` with no `content` field — should fall back to disk pre-scan
+- Rules that match on `pre-shell` event (destructive command rules like `rm-rf-protection`)
+- Rules that match on `pre-read` event (secrets/PII rules scanning file content)
